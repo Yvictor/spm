@@ -10,6 +10,35 @@ class PositionManager:
         self.pnls: Dict[str, List[PnL]] = defaultdict(list)
         self.account = account
 
+    def handel_cover(self, code: str, deal: Deal, pos: Position):
+        entry_deal = self.deals[code].popleft()
+        cover_q = min(entry_deal["remain_quantity"], deal["remain_quantity"])
+        pnl = PnL(
+            entry=entry_deal,
+            cover=deal,
+            pnl=(
+                (deal["price"] - entry_deal["price"])
+                if pos["action"] == Action.Buy
+                else (entry_deal["price"] - deal["price"])
+            )
+            * cover_q,
+            quantity=cover_q,
+        )
+        self.pnls[code].append(pnl)
+        pos["quantity"] -= cover_q
+        if pos["quantity"]:
+            pos["price"] = (
+                pos["price"] * (pos["quantity"] + cover_q)
+                - entry_deal["price"] * cover_q
+            ) / pos["quantity"]
+        if cover_q < entry_deal["remain_quantity"]:
+            entry_deal["remain_quantity"] -= cover_q
+            self.deals[code].appendleft(entry_deal)
+        deal["remain_quantity"] -= cover_q
+        if deal["remain_quantity"] == 0:
+            self.deals[code].pop()
+        return pos, deal
+
     def add_deal(self, deal: Deal):
         code = deal["code"]
         self.deals[code].append(deal)
@@ -21,66 +50,15 @@ class PositionManager:
                 ) / (pos["quantity"] + deal["quantity"])
                 pos["quantity"] += deal["quantity"]
             else:
-                if pos["action"] == Action.Buy:
-                    entry_deal = self.deals[code].popleft()
-                    cover_q = min(entry_deal["remain_quantity"], deal["quantity"])
-                    pnl = PnL(
-                        entry=entry_deal,
-                        cover=deal,
-                        pnl=(deal["price"] - entry_deal["price"]) * cover_q,
-                        quantity=cover_q,
-                    )
-                    self.pnls[code].append(pnl)
-                    pos["quantity"] -= cover_q
-                    pos["price"] = (pos["price"] * pos["quantity"] - entry_deal["price"] * cover_q) / (pos["quantity"] - cover_q)
-                    if cover_q < entry_deal["remain_quantity"]:
-                        entry_deal["remain_quantity"] -= cover_q
-                        self.deals[code].appendleft(entry_deal)
-                    deal["remain_quantity"] -= cover_q
-                    if deal["remain_quantity"] == 0:
-                        self.deals[code].pop()
-                else:
-                    entry_deal = self.deals[code].popleft()
-                    cover_q = min(entry_deal["remain_quantity"], deal["quantity"])
-                    pnl = PnL(
-                        entry=entry_deal,
-                        cover=deal,
-                        pnl=(entry_deal["price"] - deal["price"]) * cover_q,
-                        quantity=cover_q,
-                    )
-                    self.pnls[code].append(pnl)
-                    pos["quantity"] -= cover_q
-                    pos["price"] = (pos["price"] * pos["quantity"] - entry_deal["price"] * cover_q) / (pos["quantity"] - cover_q)
-                    if cover_q < entry_deal["remain_quantity"]:
-                        entry_deal["remain_quantity"] -= cover_q
-                        self.deals[code].appendleft(entry_deal)
-                    deal["remain_quantity"] -= cover_q
-                    if deal["remain_quantity"] == 0:
-                        self.deals[code].pop()
-
-            # if deal["action"] == Action.Buy:
-            #     # if pos["quantity"] < 0:
-            #     #     entry_deal = self.deals[code].popleft()
-            #     #     cover_q = min(entry_deal["remain_quantity"], deal["quantity"])
-            #     #     pnl = PnL(entry=entry_deal, cover=deal, pnl=(deal["price"] - entry_deal["price"]) * cover_q, quantity=cover_q)
-            #     #     if cover_q
-            #     #     if cover_q < entry_deal["remain_quantity"]:
-            #     #         entry_deal["remain_quantity"] -= cover_q
-            #     #         self.deals[code].appendleft(entry_deal)
-            #     #     self.pnls[code].append(pnl)
-            #     #     pos["price"] = (pos["price"] * (-pos["quantity"]) - deal["price"] * cover_q) / (-pos["quantity"] + cover_q)
-            #     #     pos["quantity"] += cover_q
-            #     #     if
-            #     # else:
-            #     pos["price"] = (
-            #         pos["price"] * pos["quantity"] + deal["price"] * deal["quantity"]
-            #     ) / (pos["quantity"] + deal["quantity"])
-            #     pos["quantity"] += deal["quantity"]
-            # else:
-            #     pos["price"] = (
-            #         pos["price"] * pos["quantity"] + deal["price"] * deal["quantity"]
-            #     ) / (pos["quantity"] + deal["quantity"])
-            #     pos["quantity"] -= deal["quantity"]
+                pos, deal = self.handel_cover(code, deal, pos)
+                while deal["remain_quantity"]:
+                    if self.deals[code] and self.deals[code][0]["action"] != deal["action"]:
+                        pos, deal = self.handel_cover(code, deal, pos)
+                    else:
+                        pos["quantity"] = deal["remain_quantity"]
+                        pos["price"] = deal["price"]
+                        pos["action"] = deal["action"]
+                        break
             if pos["quantity"] == 0:
                 del self.positions[code]
         else:
