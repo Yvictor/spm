@@ -68,3 +68,30 @@ class PositionManager:
                 quantity=deal["quantity"],
                 price=deal["price"],
             )
+    
+    def list_positions(self):
+        return self.positions
+    
+    def list_positions_details(self):
+        return self.deals
+
+    def list_pnls_detail(self):
+        return self.pnls
+
+
+class AccountPositionManager:
+    def __init__(self, accounts: List[Account]):
+        self.managers = {account["id"]: PositionManager(account) for account in accounts}
+
+    def add_deal(self, account_id: str, deal: Deal):
+        self.managers[account_id].add_deal(deal)
+    
+    def list_positions(self, account_id: str):
+        return self.managers[account_id].list_positions()
+    
+    def list_positions_details(self, account_id: str):
+        return self.managers[account_id].list_positions_details()
+    
+    def list_pnls_detail(self, account_id: str):
+        return self.managers[account_id].list_pnls_detail()
+    

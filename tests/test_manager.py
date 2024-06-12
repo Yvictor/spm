@@ -59,7 +59,7 @@ def test_add_deal_with_exist_pos_same_side(action: str):
     assert manager.positions["AAPL"]["action"] == Action(action)
 
 @pytest.mark.parametrize("action", ["B", "S"])
-def test_add_deal_with_exist_pos_diff_side(action: str):
+def test_add_deal_simple_cover(action: str):
     account = {"id": "0", "name": "test"}
     manager = PositionManager(account)
     deal_init = Deal(
@@ -95,7 +95,7 @@ def test_add_deal_with_exist_pos_diff_side(action: str):
     assert manager.pnls["AAPL"][0]["pnl"] == 1000.0 if action == Action.Buy else -1000.0
 
 @pytest.mark.parametrize("action", ["B", "S"])
-def test_add_deal_with_exist_pos_diff_side_partial_cover(action: str):
+def test_add_deal_partial_cover(action: str):
     account = {"id": "0", "name": "test"}
     manager = PositionManager(account)
     deal_init = Deal(
@@ -133,7 +133,7 @@ def test_add_deal_with_exist_pos_diff_side_partial_cover(action: str):
     assert manager.pnls["AAPL"][0]["pnl"] == 20 * 10.0 if action == Action.Buy else 20 * -10.0
 
 @pytest.mark.parametrize("action", ["B", "S"])
-def test_add_deal_with_exist_pos_diff_side_over_cover(action: str):
+def test_add_deal_over_cover(action: str):
     account = {"id": "0", "name": "test"}
     manager = PositionManager(account)
     deal_init = Deal(
@@ -169,3 +169,57 @@ def test_add_deal_with_exist_pos_diff_side_over_cover(action: str):
     assert manager.pnls["AAPL"][0]["cover"] == deal_new
     assert manager.pnls["AAPL"][0]["quantity"] == 100
     assert manager.pnls["AAPL"][0]["pnl"] == 1000.0 if action == Action.Buy else -1000.0
+
+
+
+@pytest.mark.parametrize("action", ["B", "S"])
+def test_add_deal_multi_deal_over_cover(action: str):
+    account = {"id": "0", "name": "test"}
+    manager = PositionManager(account)
+    deal_0 = Deal(
+        code="AAPL",
+        action=action,
+        quantity=40,
+        remain_quantity=40,
+        price=100.0,
+        date=datetime.date(2021, 1, 1),
+        time=datetime.time(9, 0, 0),
+    )
+    deal_1 = Deal(
+        code="AAPL",
+        action=action,
+        quantity=60,
+        remain_quantity=60,
+        price=100.0,
+        date=datetime.date(2021, 1, 1),
+        time=datetime.time(9, 0, 0),
+    )
+    manager.add_deal(deal_0)
+    manager.add_deal(deal_1)
+
+    deal_cover = Deal(
+        code="AAPL",
+        action="S" if action == Action.Buy else "B",
+        quantity=120,
+        remain_quantity=120,
+        price=110.0,
+        date=datetime.date(2021, 1, 1),
+        time=datetime.time(9, 10, 0),
+    )
+    manager.add_deal(deal_cover)
+
+    assert len(manager.deals["AAPL"]) == 1
+    assert manager.deals["AAPL"][0]["remain_quantity"] == 20
+    assert manager.positions["AAPL"]["quantity"] == 20
+    assert manager.positions["AAPL"]["price"] == 110.0
+    assert manager.positions["AAPL"]["action"] == "S" if action == Action.Buy else "B"
+    assert "AAPL" in manager.pnls
+    assert len(manager.pnls["AAPL"]) == 2
+    assert manager.pnls["AAPL"][0]["entry"] == deal_0
+    assert manager.pnls["AAPL"][0]["cover"] == deal_cover
+    assert manager.pnls["AAPL"][0]["quantity"] == 40
+    assert manager.pnls["AAPL"][0]["pnl"] == 400.0 if action == Action.Buy else -400.0
+    assert manager.pnls["AAPL"][1]["entry"] == deal_1
+    assert manager.pnls["AAPL"][1]["cover"] == deal_cover
+    assert manager.pnls["AAPL"][1]["quantity"] == 60
+    assert manager.pnls["AAPL"][1]["pnl"] == 600.0 if action == Action.Buy else -600.0
