@@ -82,6 +82,14 @@ class PositionManager:
 class AccountPositionManager:
     def __init__(self, accounts: List[Account]):
         self.managers = {account["id"]: PositionManager(account) for account in accounts}
+        self.accounts = {account["id"]: account for account in accounts}
+
+    def add_account(self, account: Account):
+        self.managers[account["id"]] = PositionManager(account)
+        self.accounts[account["id"]] = account
+    
+    def get_account_name(self, account_id: str):
+        return self.accounts[account_id]["name"]
 
     def add_deal(self, account_id: str, deal: Deal):
         self.managers[account_id].add_deal(deal)
