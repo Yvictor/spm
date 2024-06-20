@@ -1,7 +1,8 @@
 from typing import Dict, List
 from collections import defaultdict, deque
-from .base import Deal, PnL, Position, Account, Action
-
+from .base import Deal, PnL, Position, Account, Action, PositionManagerData
+import pickle
+from pathlib import Path
 
 class PositionManager:
     def __init__(self, account: Account) -> None:
@@ -77,7 +78,31 @@ class PositionManager:
 
     def list_pnls_detail(self):
         return self.pnls
+    
+    def save(self, path: str = ""):
+        data = PositionManagerData(
+            deals=pickle.dumps(self.deals),
+            positions=pickle.dumps(self.positions),
+            pnls=pickle.dumps(self.pnls),
+            account=pickle.dumps(self.account)
+        )
+        data_dump = pickle.dumps(data)
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        path = path.joinpath(self.account["id"]).with_suffix(".pkl")
+        path.write_bytes(data_dump)
 
+    @staticmethod
+    def load(account_id: str, path: str = "") -> "PositionManager":
+        path = Path(path).joinpath(account_id).with_suffix(".pkl")
+        data_dump = path.read_bytes()
+        data = pickle.loads(data_dump)
+        account = pickle.loads(data["account"])
+        pm = PositionManager(account=account)   
+        pm.deals = pickle.loads(data["deals"])
+        pm.positions = pickle.loads(data["positions"])
+        pm.pnls = pickle.loads(data["pnls"])
+        return pm
 
 class AccountPositionManager:
     def __init__(self, accounts: List[Account]):
@@ -102,4 +127,20 @@ class AccountPositionManager:
     
     def list_pnls_detail(self, account_id: str):
         return self.managers[account_id].list_pnls_detail()
+    
+    def save(self, path: str = "spm"):
+        for manager in self.managers.values():
+            manager.save(path)
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        path = path.joinpath(".spm_meta")
+        path.write_bytes(pickle.dumps(self.accounts))
+    
+    def load(self, path: str = "spm"):
+        path = Path(path)
+        meta_fp = path.joinpath(".spm_meta")
+        if meta_fp.exists():
+            self.accounts = pickle.loads(meta_fp.read_bytes())
+            for account_id in self.accounts:
+                self.managers[account_id] = PositionManager.load(account_id, path)
     

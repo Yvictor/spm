@@ -33,3 +33,9 @@ class Position(TypedDict):
 class Account(TypedDict):
     id: str
     name: str
+
+class PositionManagerData(TypedDict):
+    deals: dict[str, list[Deal]]
+    positions: dict[str, Position]
+    pnls: dict[str, list[PnL]]
+    account: Account
